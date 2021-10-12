@@ -1,0 +1,2 @@
+polib /MACHINE:X64 %SystemRoot%\System32\msvcrt.dll /OUT:msvcrt64.lib
+cc /x /Tx64-coff /Os /Ze caffeinate.c /ENTRY:wmain /SUBSYSTEM:CONSOLE /RELEASE /MACHINE:X64 /NODEFAULTLIB kernel32.lib user32.lib shell32.lib msvcrt64.lib /ocaffeinate-x64.exe

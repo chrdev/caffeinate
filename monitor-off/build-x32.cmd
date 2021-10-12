@@ -1,0 +1,1 @@
+cc /x /Tx86-coff /Os /Ze monitor-off.c /ENTRY:wmain /SUBSYSTEM:WINDOWS /RELEASE /MACHINE:X86 /omonitor-off-x32.exe

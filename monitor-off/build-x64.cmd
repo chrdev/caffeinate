@@ -1,0 +1,1 @@
+cc /x /Tx64-coff /Os /Ze monitor-off.c /ENTRY:wmain /SUBSYSTEM:WINDOWS /RELEASE /MACHINE:X64 /omonitor-off-x64.exe
