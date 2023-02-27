@@ -1,8 +1,8 @@
-﻿// Caffeinate v1.0.0
+﻿// Caffeinate v1.0.1
 // Keeps the system awake.
 //
-// By chrdev, 2021
-// BSD Zero Clause License
+// Author: chrdev, 2023
+// License: BSD Zero Clause
 //
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -18,7 +18,7 @@ int wprintf_s(const wchar_t* const format, ...);
 
 
 enum {
-	kMonitorOffDelay = 5, // In seconds.
+	kMonitorOffDelay = 7, // In seconds.
 };
 
 typedef struct Command{
@@ -79,8 +79,8 @@ getCommand(void) {
 static inline void
 printHelp(void) {
 	static const wchar_t text[] = 
-		L"Caffeinate v1.0.0\n"
-		L"Keeps the system awake.\n\n"
+		L"Caffeinate v1.0.1 | chrdev | BSD Zero Clause\n"
+		L"Keeps the system awake.\n"
 		L"  /D, /M  Don\'t turn off monitor\n"
 		L"  /?      Show help (this message)\n";
 	wprintf_s(text);
@@ -89,9 +89,9 @@ printHelp(void) {
 static void
 printStatus(Status status) {
 	static const wchar_t* text[] = {
-		[status_kNormal        - status_kBegin] = L"System is in normal mode.\n",
-		[status_kNonSleep      - status_kBegin] = L"System is in non-sleep mode.\n",
-		[status_kWaitingToQuit - status_kBegin] = L"Press any key to quit non-sleep mode...\n",
+		[status_kNormal        - status_kBegin] = L"End non-sleep mode.\n",
+		[status_kNonSleep      - status_kBegin] = L"In non-sleep mode...\n",
+		[status_kWaitingToQuit - status_kBegin] = L"Press any key to quit...\n",
 	};
 
 	wprintf_s(text[status - status_kBegin]);
@@ -99,23 +99,29 @@ printStatus(Status status) {
 
 static inline bool
 isKeyUp(HANDLE stdIn) {
+	static bool wasDown = false;
 	INPUT_RECORD ir;
 	DWORD eventCount;
 	if (!ReadConsoleInputW(stdIn, &ir, 1, &eventCount)) return false;
-	if (ir.EventType == KEY_EVENT && !ir.Event.KeyEvent.bKeyDown) return true;
-	return false;
+	if (ir.EventType != KEY_EVENT) return false;
+	if (ir.Event.KeyEvent.bKeyDown) {
+		wasDown = true;
+		return false;
+	}
+	if (!wasDown) return false;
+	return true;
 }
 
 static inline void
-waitForStdInput(void) {
+waitForStdKeyIn(void) {
 	HANDLE stdIn = GetStdHandle(STD_INPUT_HANDLE);
-	FlushConsoleInputBuffer(stdIn);
+	if (!stdIn || stdIn == INVALID_HANDLE_VALUE) return;
 	
 	for (;;) {
 		WaitForSingleObject(stdIn, INFINITE);
-		// Eliminate interfernece.
-		if (!isKeyUp(stdIn)) break;
+		if (isKeyUp(stdIn)) break;
 	}
+	FlushConsoleInputBuffer(stdIn);
 }
 
 static inline bool
@@ -127,7 +133,7 @@ askTurnOffMonitor(void) {
 	SetConsoleMode(stdIn, ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS);
 	FlushConsoleInputBuffer(stdIn);
 	for (int round = kMonitorOffDelay; round > 0; --round) {
-		wprintf_s(L"\rInput to cancel turning off monitor in %d seconds...", round);
+		wprintf_s(L"\rTo keep monitor on, input in %d seconds...", round);
 		DWORD waitResult = WaitForSingleObject(stdIn, 1000);
 		if (waitResult != WAIT_TIMEOUT) {
 			result = false;
@@ -135,6 +141,7 @@ askTurnOffMonitor(void) {
 		}
 	}
 	SetConsoleMode(stdIn, origMode);
+	FlushConsoleInputBuffer(stdIn);
 	return result;
 }
 
@@ -161,16 +168,16 @@ wmain(void) {
 
 	if (!cmd.leaveMonitorOn) {
 		if (askTurnOffMonitor()) {
-			wprintf_s(L"\rMonitor was turned off.                            \n");
+			wprintf_s(L"\rMonitor was turned off.                   \n");
 			monitorOff();
 		}
 		else {
-			wprintf_s(L"\rMonitor was left on.                               \n");
+			wprintf_s(L"\rMonitor was left on.                      \n");
 		}
 	}
 
 	printStatus(status_kWaitingToQuit);
-	waitForStdInput();
+	waitForStdKeyIn();
 	SetThreadExecutionState(ES_CONTINUOUS);
 	printStatus(status_kNormal);
 
