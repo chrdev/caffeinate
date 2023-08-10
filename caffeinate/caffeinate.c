@@ -125,6 +125,32 @@ waitForStdKeyIn(void) {
 }
 
 static inline bool
+hasInputInFirstSecond(HANDLE h) {
+	wprintf_s(L"\rTo keep monitor on, input in %d seconds...", kMonitorOffDelay);
+	bool isFirstSizeEvent = true;
+	DWORD timeout = 1000;
+	const DWORD tc = GetTickCount();
+	for (DWORD waitResult = WaitForSingleObject(h, timeout); waitResult != WAIT_TIMEOUT; waitResult = WaitForSingleObject(h, timeout)) {
+		INPUT_RECORD ir;
+		if (ReadConsoleInput(h, &ir, 1, &(DWORD){0})) {
+			if (ir.EventType == WINDOW_BUFFER_SIZE_EVENT && isFirstSizeEvent) {
+				isFirstSizeEvent = false;
+			}
+			else if (ir.EventType == KEY_EVENT || ir.EventType == MOUSE_EVENT || (!isFirstSizeEvent && ir.EventType == WINDOW_BUFFER_SIZE_EVENT)) {
+				return true;
+			}
+		}
+		else {
+			FlushConsoleInputBuffer(h);
+		}
+		DWORD delta = GetTickCount() - tc;
+		if (delta >= 1000) break;
+		timeout = 1000 - delta;
+	}
+	return false;
+}
+
+static inline bool
 askTurnOffMonitor(void) {
 	bool result = true;
 	HANDLE stdIn = GetStdHandle(STD_INPUT_HANDLE);
@@ -132,7 +158,10 @@ askTurnOffMonitor(void) {
 	GetConsoleMode(stdIn, &origMode);
 	SetConsoleMode(stdIn, ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS);
 	FlushConsoleInputBuffer(stdIn);
-	for (int round = kMonitorOffDelay; round > 0; --round) {
+	
+	result = !hasInputInFirstSecond(stdIn);
+	if (!result) goto fin;
+	for (int round = kMonitorOffDelay - 1; round > 0; --round) {
 		wprintf_s(L"\rTo keep monitor on, input in %d seconds...", round);
 		DWORD waitResult = WaitForSingleObject(stdIn, 1000);
 		if (waitResult != WAIT_TIMEOUT) {
@@ -140,6 +169,8 @@ askTurnOffMonitor(void) {
 			break;
 		}
 	}
+	
+fin:;
 	SetConsoleMode(stdIn, origMode);
 	FlushConsoleInputBuffer(stdIn);
 	return result;
